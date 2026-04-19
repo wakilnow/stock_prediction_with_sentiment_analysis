@@ -81,7 +81,8 @@ if __name__ == "__main__":
         ".venv/bin/python3", "train_automl.py",
         "--trials", TRIALS,
         "--data-dir", DIR_SENTIMENT,
-        "--save-model", MODEL_SENTIMENT
+        "--save-model", MODEL_SENTIMENT,
+        "--plot-prefix", "models/sentiment_"
     ])
     mae_sent, rmse_sent = extract_metrics(out_sentiment)
 
@@ -93,7 +94,8 @@ if __name__ == "__main__":
         ".venv/bin/python3", "train_automl.py",
         "--trials", TRIALS,
         "--data-dir", DIR_NO_SENTIMENT,
-        "--save-model", MODEL_NO_SENTIMENT
+        "--save-model", MODEL_NO_SENTIMENT,
+        "--plot-prefix", "models/no_sentiment_"
     ])
     mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
 

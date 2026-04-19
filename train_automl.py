@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 import joblib
+import matplotlib.pyplot as plt
 
 from model import TimeSeriesDataset, MultimodalStockTransformer
 
@@ -17,7 +18,7 @@ def load_data(data_dir="data/processed"):
     y_test  = np.load(os.path.join(data_dir, "y_test.npy"))
     return X_train, y_train, X_test, y_test
 
-def train_and_evaluate(args, X_train, y_train, X_valid, y_valid):
+def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=None):
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     
     num_features = X_train.shape[2]
@@ -45,6 +46,9 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid):
     early_stopping_patience = 5
     patience_counter = 0
     epochs = 25
+    
+    train_losses = []
+    val_losses = []
     
     for epoch in range(epochs):
         model.train()
@@ -74,6 +78,9 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid):
                 
         val_loss /= len(valid_loader.dataset)
         
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
@@ -84,6 +91,19 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid):
             
         if patience_counter >= early_stopping_patience:
             break
+            
+    if plot_prefix:
+        plt.figure(figsize=(10, 5))
+        plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss')
+        plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss (MSE)')
+        plt.title('Training and Validation Loss Curve')
+        plt.legend()
+        plt.grid(True)
+        os.makedirs(os.path.dirname(plot_prefix) or '.', exist_ok=True)
+        plt.savefig(f"{plot_prefix}training_curve.png")
+        plt.close()
             
     return best_val_loss
 
@@ -127,6 +147,7 @@ if __name__ == "__main__":
     parser.add_argument('--trials', type=int, default=5, help='Number of optuna trials')
     parser.add_argument('--data-dir', type=str, default='data/processed', help='Directory containing the processed numpy arrays')
     parser.add_argument('--save-model', type=str, default='models/best_transformer.pth', help='Path to save the best model')
+    parser.add_argument('--plot-prefix', type=str, default=None, help='Prefix for saved plots (e.g., models/sentiment_)')
     cmd_args = parser.parse_args()
 
     # Pass data_dir into global scope for objective function
@@ -145,7 +166,7 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(cmd_args.save_model) or '.', exist_ok=True)
     
     X_train, y_train, X_test, y_test = load_data(data_dir=DATA_DIR)
-    best_val_loss = train_and_evaluate(best_args, X_train, y_train, X_test, y_test)
+    best_val_loss = train_and_evaluate(best_args, X_train, y_train, X_test, y_test, plot_prefix=cmd_args.plot_prefix)
     
     print(f"Final test loss (MSE Scaled): {best_val_loss:.6f}")
     
@@ -188,3 +209,15 @@ if __name__ == "__main__":
     
     print(f"Final Test MAE (Original Price Scale): ${mae:.2f}")
     print(f"Final Test RMSE (Original Price Scale): ${rmse:.2f}")
+
+    if cmd_args.plot_prefix:
+        plt.figure(figsize=(14, 6))
+        plt.plot(all_targets_inv, label='True Close Price', color='blue', alpha=0.7)
+        plt.plot(all_preds_inv, label='Predicted Close Price', color='red', alpha=0.7)
+        plt.xlabel('Time Steps (Days)')
+        plt.ylabel('Price (USD)')
+        plt.title('True vs Predicted Stock Prices on Test Set')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f"{cmd_args.plot_prefix}true_vs_pred.png")
+        plt.close()
