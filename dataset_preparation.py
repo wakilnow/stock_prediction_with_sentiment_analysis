@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 import argparse
 
-def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_length=30, test_size=0.2, save_dir="data/processed", include_sentiment=True):
+def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_length=30, test_size=0.2, save_dir="data/processed", include_sentiment=True, sentiment_model="ProsusAI/finbert"):
     print("Loading datasets...")
     prices = pd.read_csv(prices_path)
     news = pd.read_csv(news_path)
@@ -48,9 +48,9 @@ def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_len
     # Fill missing news with empty string
     merged['title'] = merged['title'].fillna('')
 
-    # Use FinBERT for sentiment extraction
+    # Use specified model for sentiment extraction
     if include_sentiment:
-        print("Extracting sentiment features using FinBERT...")
+        print(f"Extracting sentiment features using {sentiment_model}...")
         device = 0 if torch.cuda.is_available() else (-1)
         
         if torch.backends.mps.is_available():
@@ -60,10 +60,10 @@ def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_len
     
         try:
             # Newer transformers versions
-            sentiment_pipeline = pipeline("text-classification", model="ProsusAI/finbert", top_k=None, device=device)
+            sentiment_pipeline = pipeline("text-classification", model=sentiment_model, top_k=None, device=device)
         except TypeError:
             # Older versions
-            sentiment_pipeline = pipeline("text-classification", model="ProsusAI/finbert", return_all_scores=True, device=device)
+            sentiment_pipeline = pipeline("text-classification", model=sentiment_model, return_all_scores=True, device=device)
     
         positive_scores, negative_scores, neutral_scores = [], [], []
         
@@ -141,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--end-date", type=str, default=None, help="End date (YYYY-MM-DD)")
     parser.add_argument("--save-dir", type=str, default="data/processed", help="Directory to save numpy arrays")
     parser.add_argument("--no-sentiment", action="store_true", help="Flag to disable FinBERT sentiment extraction")
+    parser.add_argument("--sentiment-model", type=str, default="ProsusAI/finbert", help="HuggingFace model for sentiment extraction")
     args = parser.parse_args()
     
     if os.path.exists(args.prices) and os.path.exists(args.news):
@@ -150,7 +151,8 @@ if __name__ == "__main__":
             start_date=args.start_date,
             end_date=args.end_date,
             save_dir=args.save_dir,
-            include_sentiment=not args.no_sentiment
+            include_sentiment=not args.no_sentiment,
+            sentiment_model=args.sentiment_model
         )
     else:
         print(f"Data files not found. Ensure {args.prices} and {args.news} exist.")

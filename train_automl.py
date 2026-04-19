@@ -18,7 +18,7 @@ def load_data(data_dir="data/processed"):
     y_test  = np.load(os.path.join(data_dir, "y_test.npy"))
     return X_train, y_train, X_test, y_test
 
-def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=None):
+def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_test=None, plot_prefix=None):
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     
     num_features = X_train.shape[2]
@@ -39,6 +39,12 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=Non
     train_dataset = TimeSeriesDataset(X_train, y_train)
     valid_dataset = TimeSeriesDataset(X_valid, y_valid)
     
+    if X_test is not None and y_test is not None:
+        test_dataset = TimeSeriesDataset(X_test, y_test)
+        test_loader = DataLoader(test_dataset, batch_size=args['batch_size'], shuffle=False)
+    else:
+        test_loader = None
+    
     train_loader = DataLoader(train_dataset, batch_size=args['batch_size'], shuffle=True)
     valid_loader = DataLoader(valid_dataset, batch_size=args['batch_size'], shuffle=False)
     
@@ -49,6 +55,7 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=Non
     
     train_losses = []
     val_losses = []
+    test_losses = []
     
     for epoch in range(epochs):
         model.train()
@@ -78,6 +85,17 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=Non
                 
         val_loss /= len(valid_loader.dataset)
         
+        if test_loader is not None:
+            test_loss = 0.0
+            with torch.no_grad():
+                for batch_x, batch_y in test_loader:
+                    batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+                    outputs = model(batch_x)
+                    loss = criterion(outputs, batch_y)
+                    test_loss += loss.item() * batch_x.size(0)
+            test_loss /= len(test_loader.dataset)
+            test_losses.append(test_loss)
+        
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         
@@ -96,9 +114,13 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, plot_prefix=Non
         plt.figure(figsize=(10, 5))
         plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss')
         plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss')
+        if test_losses:
+            plt.plot(range(1, len(test_losses) + 1), test_losses, label='Test Loss')
+            plt.title('Training, Validation, and Test Loss Curve')
+        else:
+            plt.title('Training and Validation Loss Curve')
         plt.xlabel('Epochs')
         plt.ylabel('Loss (MSE)')
-        plt.title('Training and Validation Loss Curve')
         plt.legend()
         plt.grid(True)
         os.makedirs(os.path.dirname(plot_prefix) or '.', exist_ok=True)
@@ -160,15 +182,21 @@ if __name__ == "__main__":
     print("\nBest hyperparameters data:")
     print(study.best_params)
     
-    print("\nTraining final model on full training set with best hparams...")
+    print("\nTraining final model with best hparams (using chronological validation split)...")
     best_args = study.best_params
     best_args['save_path'] = cmd_args.save_model
     os.makedirs(os.path.dirname(cmd_args.save_model) or '.', exist_ok=True)
     
     X_train, y_train, X_test, y_test = load_data(data_dir=DATA_DIR)
-    best_val_loss = train_and_evaluate(best_args, X_train, y_train, X_test, y_test, plot_prefix=cmd_args.plot_prefix)
     
-    print(f"Final test loss (MSE Scaled): {best_val_loss:.6f}")
+    # Chronological split for validation out of Train set
+    train_size = int(len(X_train) * 0.8)
+    X_tr, y_tr = X_train[:train_size], y_train[:train_size]
+    X_va, y_va = X_train[train_size:], y_train[train_size:]
+    
+    best_val_loss = train_and_evaluate(best_args, X_tr, y_tr, X_va, y_va, X_test=X_test, y_test=y_test, plot_prefix=cmd_args.plot_prefix)
+    
+    print(f"Validation loss (MSE Scaled) for best model: {best_val_loss:.6f}")
     
     # Compute MAE & RMSE on Original Scale
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")

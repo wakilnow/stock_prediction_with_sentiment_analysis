@@ -33,78 +33,128 @@ def extract_metrics(output_text):
 
 if __name__ == "__main__":
     # Base configuration
-    PRICES_CSV = "data/prices/JPM.csv"
-    NEWS_CSV = "data/news_investing.com/jpm_news.csv"
     START_DATE = "2020-01-01"
     END_DATE = "2025-12-31"
     TRIALS = "5" # Optuna trials per model
 
-    # Paths
-    DIR_SENTIMENT    = "data/processed_with_sentiment"
-    MODEL_SENTIMENT  = "models/best_transformer_with_sentiment.pth"
+    stocks_config = [
+        {
+            "symbol": "JPM",
+            "prices_csv": "data/prices/JPM.csv",
+            "news_csv": "data/news_investing.com/jpm_news.csv",
+            "sentiment_model": "ProsusAI/finbert"
+        },
+        {
+            "symbol": "BAC",
+            "prices_csv": "data/prices/BAC.csv",
+            "news_csv": "data/news_l/BAC_news.csv",
+            "sentiment_model": "ProsusAI/finbert"
+        },
+        {
+            "symbol": "COMI",
+            "prices_csv": "data/prices/COMI_CA.csv",
+            "news_csv": "data/news10/COMI_mubasher.csv",
+            "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"
+        },
+        {
+            "symbol": "CIEB",
+            "prices_csv": "data/prices/CIEB_CA.csv",
+            "news_csv": "data/news10/CIEB_mubasher.csv",
+            "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"
+        }
+    ]
+
+    results = []
+
+    for config in stocks_config:
+        symbol = config["symbol"]
+        sentiment_model_name = config["sentiment_model"]
+        print("\n" + "#" * 80)
+        print(f"PROCESSING {symbol} with Sentiment Model {sentiment_model_name}")
+        print("#" * 80)
+
+        # Paths
+        dir_sentiment    = f"data/processed_with_sentiment_{symbol}"
+        model_sentiment  = f"models/best_transformer_with_sentiment_{symbol}.pth"
+        
+        dir_no_sentiment = f"data/processed_no_sentiment_{symbol}"
+        model_no_sentiment = f"models/best_transformer_no_sentiment_{symbol}.pth"
+
+        # Step 1: Data Preparation WITH Sentiment
+        print("\n" + "=" * 60)
+        print(f"STEP 1: Preparing Data WITH Sentiment - {symbol}")
+        print("=" * 60)
+        run_command([
+            ".venv/bin/python3", "dataset_preparation.py",
+            "--prices", config["prices_csv"],
+            "--news", config["news_csv"],
+            "--start-date", START_DATE,
+            "--end-date", END_DATE,
+            "--save-dir", dir_sentiment,
+            "--sentiment-model", sentiment_model_name
+        ])
+
+        # Step 2: Data Preparation WITHOUT Sentiment
+        print("\n" + "=" * 60)
+        print(f"STEP 2: Preparing Data WITHOUT Sentiment - {symbol}")
+        print("=" * 60)
+        run_command([
+            ".venv/bin/python3", "dataset_preparation.py",
+            "--prices", config["prices_csv"],
+            "--news", config["news_csv"],
+            "--start-date", START_DATE,
+            "--end-date", END_DATE,
+            "--save-dir", dir_no_sentiment,
+            "--no-sentiment"
+        ])
+
+        # Step 3: Train Model WITH Sentiment
+        print("\n" + "=" * 60)
+        print(f"STEP 3: Training Model WITH Sentiment - {symbol}")
+        print("=" * 60)
+        out_sentiment = run_command([
+            ".venv/bin/python3", "train_automl.py",
+            "--trials", TRIALS,
+            "--data-dir", dir_sentiment,
+            "--save-model", model_sentiment,
+            "--plot-prefix", f"models/{symbol}_sentiment_"
+        ])
+        mae_sent, rmse_sent = extract_metrics(out_sentiment)
+
+        # Step 4: Train Model WITHOUT Sentiment
+        print("\n" + "=" * 60)
+        print(f"STEP 4: Training Model WITHOUT Sentiment - {symbol}")
+        print("=" * 60)
+        out_no_sentiment = run_command([
+            ".venv/bin/python3", "train_automl.py",
+            "--trials", TRIALS,
+            "--data-dir", dir_no_sentiment,
+            "--save-model", model_no_sentiment,
+            "--plot-prefix", f"models/{symbol}_no_sentiment_"
+        ])
+        mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
+
+        results.append({
+            "Symbol": symbol,
+            "Model": sentiment_model_name,
+            "MAE_No_Sent": mae_no_sent,
+            "MAE_With_Sent": mae_sent,
+            "RMSE_No_Sent": rmse_no_sent,
+            "RMSE_With_Sent": rmse_sent
+        })
+
+    # Step 5: Final Comparison Table
+    print("\n" + "=" * 100)
+    print("FINAL COMPARISON RESULTS (2020 - 2025)")
+    print("=" * 100)
+    print(f"{'Stock':<8} | {'Sentiment Model':<55} | {'No Sent MAE':<12} | {'Sent MAE':<12}")
+    print("-" * 100)
+    for r in results:
+        print(f"{r['Symbol']:<8} | {r['Model']:<55} | {str(r['MAE_No_Sent']):<12} | {str(r['MAE_With_Sent']):<12}")
     
-    DIR_NO_SENTIMENT = "data/processed_no_sentiment"
-    MODEL_NO_SENTIMENT = "models/best_transformer_no_sentiment.pth"
-
-    # Step 1: Data Preparation WITH Sentiment
-    print("=" * 60)
-    print("STEP 1: Preparing Data WITH Sentiment")
-    print("=" * 60)
-    run_command([
-        ".venv/bin/python3", "dataset_preparation.py",
-        "--prices", PRICES_CSV,
-        "--news", NEWS_CSV,
-        "--start-date", START_DATE,
-        "--end-date", END_DATE,
-        "--save-dir", DIR_SENTIMENT
-    ])
-
-    # Step 2: Data Preparation WITHOUT Sentiment
-    print("\n" + "=" * 60)
-    print("STEP 2: Preparing Data WITHOUT Sentiment")
-    print("=" * 60)
-    run_command([
-        ".venv/bin/python3", "dataset_preparation.py",
-        "--prices", PRICES_CSV,
-        "--news", NEWS_CSV,
-        "--start-date", START_DATE,
-        "--end-date", END_DATE,
-        "--save-dir", DIR_NO_SENTIMENT,
-        "--no-sentiment"
-    ])
-
-    # Step 3: Train Model WITH Sentiment
-    print("\n" + "=" * 60)
-    print("STEP 3: Training Model WITH Sentiment")
-    print("=" * 60)
-    out_sentiment = run_command([
-        ".venv/bin/python3", "train_automl.py",
-        "--trials", TRIALS,
-        "--data-dir", DIR_SENTIMENT,
-        "--save-model", MODEL_SENTIMENT,
-        "--plot-prefix", "models/sentiment_"
-    ])
-    mae_sent, rmse_sent = extract_metrics(out_sentiment)
-
-    # Step 4: Train Model WITHOUT Sentiment
-    print("\n" + "=" * 60)
-    print("STEP 4: Training Model WITHOUT Sentiment")
-    print("=" * 60)
-    out_no_sentiment = run_command([
-        ".venv/bin/python3", "train_automl.py",
-        "--trials", TRIALS,
-        "--data-dir", DIR_NO_SENTIMENT,
-        "--save-model", MODEL_NO_SENTIMENT,
-        "--plot-prefix", "models/no_sentiment_"
-    ])
-    mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
-
-    # Step 5: Final Comparison
-    print("\n" + "=" * 60)
-    print("FINAL COMPARISON: JPM (2020 - 2025)")
-    print("=" * 60)
-    print(f"{'Metric':<10} | {'No Sentiment':<20} | {'With Sentiment':<20}")
-    print("-" * 55)
-    print(f"{'MAE':<10} | {str(mae_no_sent):<20} | {str(mae_sent):<20}")
-    print(f"{'RMSE':<10} | {str(rmse_no_sent):<20} | {str(rmse_sent):<20}")
-    print("=" * 60)
+    print("\n" + "-" * 100)
+    print(f"{'Stock':<8} | {'Sentiment Model':<55} | {'No Sent RMSE':<12} | {'Sent RMSE':<12}")
+    print("-" * 100)
+    for r in results:
+        print(f"{r['Symbol']:<8} | {r['Model']:<55} | {str(r['RMSE_No_Sent']):<12} | {str(r['RMSE_With_Sent']):<12}")
+    print("=" * 100)
