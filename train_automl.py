@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 import joblib
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from model import TimeSeriesDataset, MultimodalStockTransformer
@@ -111,6 +112,21 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
             break
             
     if plot_prefix:
+        os.makedirs(os.path.dirname(plot_prefix) or '.', exist_ok=True)
+        
+        # Save to CSV
+        csv_data = {
+            'Epoch': range(1, len(train_losses) + 1),
+            'Train Loss': train_losses,
+            'Validation Loss': val_losses
+        }
+        if test_losses:
+            csv_data['Test Loss'] = test_losses
+            
+        df_metrics = pd.DataFrame(csv_data)
+        df_metrics.to_csv(f"{plot_prefix}training_curve.csv", index=False)
+        
+        # Plot
         plt.figure(figsize=(10, 5))
         plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss')
         plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss')
@@ -123,7 +139,6 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
         plt.ylabel('Loss (MSE)')
         plt.legend()
         plt.grid(True)
-        os.makedirs(os.path.dirname(plot_prefix) or '.', exist_ok=True)
         plt.savefig(f"{plot_prefix}training_curve.png")
         plt.close()
             
@@ -239,6 +254,19 @@ if __name__ == "__main__":
     print(f"Final Test RMSE (Original Price Scale): ${rmse:.2f}")
 
     if cmd_args.plot_prefix:
+        os.makedirs(os.path.dirname(cmd_args.plot_prefix) or '.', exist_ok=True)
+        
+        # Save to CSV
+        preds_flat = all_preds_inv.flatten()
+        targets_flat = all_targets_inv.flatten()
+        df_preds = pd.DataFrame({
+            "Time Step": range(1, len(preds_flat) + 1),
+            "True Close Price": targets_flat,
+            "Predicted Close Price": preds_flat
+        })
+        df_preds.to_csv(f"{cmd_args.plot_prefix}true_vs_pred.csv", index=False)
+        
+        # Plot
         plt.figure(figsize=(14, 6))
         plt.plot(all_targets_inv, label='True Close Price', color='blue', alpha=0.7)
         plt.plot(all_preds_inv, label='Predicted Close Price', color='red', alpha=0.7)

@@ -119,6 +119,8 @@ if __name__ == "__main__":
             "--save-model", model_sentiment,
             "--plot-prefix", f"models/{symbol}_sentiment_"
         ])
+        with open(f"models/{symbol}_sentiment_terminal_output.txt", "w") as f:
+            f.write(out_sentiment)
         mae_sent, rmse_sent = extract_metrics(out_sentiment)
 
         # Step 4: Train Model WITHOUT Sentiment
@@ -132,6 +134,8 @@ if __name__ == "__main__":
             "--save-model", model_no_sentiment,
             "--plot-prefix", f"models/{symbol}_no_sentiment_"
         ])
+        with open(f"models/{symbol}_no_sentiment_terminal_output.txt", "w") as f:
+            f.write(out_no_sentiment)
         mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
 
         results.append({
