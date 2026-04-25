@@ -65,30 +65,34 @@ def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_len
             # Older versions
             sentiment_pipeline = pipeline("text-classification", model=sentiment_model, return_all_scores=True, device=device)
     
-        positive_scores, negative_scores, neutral_scores = [], [], []
+        sentiment_scores = []
         
         for text in tqdm(merged['title'], desc="Computing daily sentiment"):
             if text.strip() == '':
-                positive_scores.append(0.0)
-                negative_scores.append(0.0)
-                neutral_scores.append(0.0)
+                sentiment_scores.append(0.0)
             else:
                 truncated_text = text[:1500]  # rough approximation to avoid exceeding max tokens
                 try:
                     result = sentiment_pipeline(truncated_text)[0]
-                    scores = {r['label']: r['score'] for r in result}
-                    positive_scores.append(scores.get('positive', 0.0))
-                    negative_scores.append(scores.get('negative', 0.0))
-                    neutral_scores.append(scores.get('neutral', 0.0))
+                    # convert labels to lower case to handle format variations
+                    scores = {r['label'].lower(): r['score'] for r in result}
+                    
+                    pos = scores.get('positive', 0.0)
+                    neg = scores.get('negative', 0.0)
+                    neu = scores.get('neutral', 0.0)
+                    
+                    denom = pos + neg + neu
+                    if denom == 0.0:
+                        score = 0.0
+                    else:
+                        score = (pos - neg) / denom
+                        
+                    sentiment_scores.append(score)
                 except Exception as e:
                     # If error (e.g., still too long), fallback
-                    positive_scores.append(0.0)
-                    negative_scores.append(0.0)
-                    neutral_scores.append(0.0)
+                    sentiment_scores.append(0.0)
                     
-        merged['sentiment_positive'] = positive_scores
-        merged['sentiment_negative'] = negative_scores
-        merged['sentiment_neutral'] = neutral_scores
+        merged['sentiment_score'] = sentiment_scores
 
     
     # Scale Close Price
@@ -102,7 +106,7 @@ def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_len
     # Create Sequences
     print("Creating sliding windows...")
     if include_sentiment:
-        features = merged[['Close_Scaled', 'sentiment_positive', 'sentiment_negative', 'sentiment_neutral']].values
+        features = merged[['Close_Scaled', 'sentiment_score']].values
     else:
         features = merged[['Close_Scaled']].values
     
