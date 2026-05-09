@@ -35,7 +35,8 @@ if __name__ == "__main__":
     # Base configuration
     START_DATE = "2020-01-01"
     END_DATE = "2025-12-31"
-    TRIALS = "5" # Optuna trials per model
+    TRIALS = "50" # Optuna trials per model
+    SEED = "7100"
 
     stocks_config = [
         {
@@ -47,7 +48,7 @@ if __name__ == "__main__":
         {
             "symbol": "BAC",
             "prices_csv": "data/prices/BAC.csv",
-            "news_csv": "data/news_l/BAC_news.csv",
+            "news_csv": "data/news_investing.com/bac_news.csv",
             "sentiment_model": "ProsusAI/finbert"
         },
         {
@@ -75,10 +76,10 @@ if __name__ == "__main__":
 
         # Paths
         dir_sentiment    = f"data/processed_with_sentiment_{symbol}"
-        model_sentiment  = f"models/best_transformer_with_sentiment_{symbol}.pth"
+        model_sentiment  = f"outputs/models/best_transformer_with_sentiment_{symbol}.pth"
         
         dir_no_sentiment = f"data/processed_no_sentiment_{symbol}"
-        model_no_sentiment = f"models/best_transformer_no_sentiment_{symbol}.pth"
+        model_no_sentiment = f"outputs/models/best_transformer_no_sentiment_{symbol}.pth"
 
         # Step 1: Data Preparation WITH Sentiment
         print("\n" + "=" * 60)
@@ -117,9 +118,10 @@ if __name__ == "__main__":
             "--trials", TRIALS,
             "--data-dir", dir_sentiment,
             "--save-model", model_sentiment,
-            "--plot-prefix", f"models/{symbol}_sentiment_"
+            "--plot-prefix", f"outputs/models/{symbol}_sentiment_",
+            "--seed", SEED
         ])
-        with open(f"models/{symbol}_sentiment_terminal_output.txt", "w") as f:
+        with open(f"outputs/models/{symbol}_sentiment_terminal_output.txt", "w") as f:
             f.write(out_sentiment)
         mae_sent, rmse_sent = extract_metrics(out_sentiment)
 
@@ -132,9 +134,10 @@ if __name__ == "__main__":
             "--trials", TRIALS,
             "--data-dir", dir_no_sentiment,
             "--save-model", model_no_sentiment,
-            "--plot-prefix", f"models/{symbol}_no_sentiment_"
+            "--plot-prefix", f"outputs/models/{symbol}_no_sentiment_",
+            "--seed", SEED
         ])
-        with open(f"models/{symbol}_no_sentiment_terminal_output.txt", "w") as f:
+        with open(f"outputs/models/{symbol}_no_sentiment_terminal_output.txt", "w") as f:
             f.write(out_no_sentiment)
         mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
 

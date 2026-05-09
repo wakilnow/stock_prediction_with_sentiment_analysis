@@ -9,8 +9,21 @@ import os
 import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 
 from model import TimeSeriesDataset, MultimodalStockTransformer
+
+def set_seed(seed=42):
+    """Set all random seeds for reproducible results."""
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def load_data(data_dir="data/processed"):
     X_train = np.load(os.path.join(data_dir, "X_train.npy"))
@@ -182,6 +195,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--trials', type=int, default=5, help='Number of optuna trials')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--data-dir', type=str, default='data/processed', help='Directory containing the processed numpy arrays')
     parser.add_argument('--save-model', type=str, default='models/best_transformer.pth', help='Path to save the best model')
     parser.add_argument('--plot-prefix', type=str, default=None, help='Prefix for saved plots (e.g., models/sentiment_)')
@@ -191,7 +205,9 @@ if __name__ == "__main__":
     DATA_DIR = cmd_args.data_dir
 
     print(f"Starting Optuna optimization on dataset: {DATA_DIR}")
-    study = optuna.create_study(direction="minimize")
+    set_seed(cmd_args.seed)
+    sampler = optuna.samplers.TPESampler(seed=cmd_args.seed)
+    study = optuna.create_study(direction="minimize", sampler=sampler)
     study.optimize(objective, n_trials=cmd_args.trials)
     
     print("\nBest hyperparameters data:")
