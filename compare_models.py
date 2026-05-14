@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Base configuration
     START_DATE = "2020-01-01"
     END_DATE = "2025-12-31"
-    TRIALS = "500" # Optuna trials per model
+    TRIALS = "50" # Optuna trials per model
     SEED = "7100"
 
     stocks_config = [
@@ -159,6 +159,36 @@ if __name__ == "__main__":
             "No_Sent": m_no_sent,
             "With_Sent": m_sent
         })
+
+        # Combine predictions plot
+        print(f"\nCreating combined plot for {symbol}...")
+        try:
+            import pandas as pd
+            import matplotlib.pyplot as plt
+            
+            sent_csv = f"outputs/models/{symbol}_sentiment_true_vs_pred.csv"
+            no_sent_csv = f"outputs/models/{symbol}_no_sentiment_true_vs_pred.csv"
+            
+            df_sent = pd.read_csv(sent_csv)
+            df_no_sent = pd.read_csv(no_sent_csv)
+            
+            plt.figure(figsize=(14, 6))
+            # True values are the same in both, so we can just use one
+            plt.plot(df_sent['True Close Price'], label='True Close Price', color='blue', alpha=0.6, linewidth=2)
+            plt.plot(df_no_sent['Predicted Close Price'], label='Pred (No Sentiment)', color='orange', alpha=0.8, linestyle='--')
+            plt.plot(df_sent['Predicted Close Price'], label='Pred (With Sentiment)', color='green', alpha=0.8, linestyle='--')
+            
+            plt.title(f'{symbol}: True vs Predicted Prices (Sentiment vs No Sentiment)')
+            plt.xlabel('Time Steps (Days)')
+            plt.ylabel('Price')
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(f"outputs/models/{symbol}_combined_true_vs_pred.png")
+            plt.close()
+            print(f"Saved combined plot to outputs/models/{symbol}_combined_true_vs_pred.png")
+        except Exception as e:
+            print(f"Could not create combined plot for {symbol}: {e}")
 
     # Step 5: Final Comparison Table
     print("\n" + "=" * 120)
