@@ -263,11 +263,59 @@ if __name__ == "__main__":
     all_preds_inv = scaler.inverse_transform(all_preds)
     all_targets_inv = scaler.inverse_transform(all_targets)
     
-    mae = np.mean(np.abs(all_preds_inv - all_targets_inv))
-    rmse = np.sqrt(np.mean((all_preds_inv - all_targets_inv)**2))
+    # Compute Metrics
+    y_true = all_targets_inv.flatten()
+    y_pred = all_preds_inv.flatten()
     
+    mae = np.mean(np.abs(y_true - y_pred))
+    rmse = np.sqrt(np.mean((y_true - y_pred)**2))
+    
+    # R2
+    ss_res = np.sum((y_true - y_pred)**2)
+    ss_tot = np.sum((y_true - np.mean(y_true))**2)
+    r2 = 1 - (ss_res / (ss_tot + 1e-10))
+    
+    # MAPE
+    mape = np.mean(np.abs((y_true - y_pred) / (y_true + 1e-10))) * 100
+    
+    # Returns-based metrics (IC, ICIR, Sharpe)
+    if len(y_true) > 1:
+        # Simple returns
+        actual_returns = np.diff(y_true) / (y_true[:-1] + 1e-10)
+        # Predicted returns (predicted next-day price vs today's actual price)
+        pred_returns = (y_pred[1:] - y_true[:-1]) / (y_true[:-1] + 1e-10)
+        
+        # IC (Pearson Correlation)
+        ic = np.corrcoef(pred_returns, actual_returns)[0, 1]
+        if np.isnan(ic): ic = 0.0
+        
+        # ICIR (Mean IC / Std IC)
+        window = 20
+        if len(actual_returns) > window:
+            rolling_ics = []
+            for i in range(len(actual_returns) - window + 1):
+                w_ic = np.corrcoef(pred_returns[i:i+window], actual_returns[i:i+window])[0, 1]
+                rolling_ics.append(w_ic)
+            rolling_ics = np.array(rolling_ics)
+            rolling_ics = rolling_ics[~np.isnan(rolling_ics)]
+            icir = np.mean(rolling_ics) / (np.std(rolling_ics) + 1e-10) if len(rolling_ics) > 0 else 0.0
+        else:
+            icir = 0.0
+            
+        # Sharpe (Annualized, simple strategy)
+        # Strategy: Long if pred_return > 0, else stay out
+        strat_returns = np.where(pred_returns > 0, actual_returns, 0)
+        sharpe = (np.mean(strat_returns) / (np.std(strat_returns) + 1e-10)) * np.sqrt(252)
+    else:
+        ic, icir, sharpe = 0.0, 0.0, 0.0
+
     print(f"Final Test MAE (Original Price Scale): ${mae:.2f}")
     print(f"Final Test RMSE (Original Price Scale): ${rmse:.2f}")
+    print(f"Final Test R2 Score: {r2:.4f}")
+    print(f"Final Test MAPE: {mape:.2f}%")
+    print(f"Final Test IC: {ic:.4f}")
+    print(f"Final Test ICIR: {icir:.4f}")
+    print(f"Final Test Sharpe Ratio: {sharpe:.4f}")
 
     if cmd_args.plot_prefix:
         os.makedirs(os.path.dirname(cmd_args.plot_prefix) or '.', exist_ok=True)
@@ -281,6 +329,13 @@ if __name__ == "__main__":
             "Predicted Close Price": preds_flat
         })
         df_preds.to_csv(f"{cmd_args.plot_prefix}true_vs_pred.csv", index=False)
+        
+        # Save metrics to CSV
+        df_metrics = pd.DataFrame({
+            "Metric": ["MAE", "RMSE", "R2", "MAPE", "IC", "ICIR", "Sharpe Ratio"],
+            "Value": [mae, rmse, r2, mape, ic, icir, sharpe]
+        })
+        df_metrics.to_csv(f"{cmd_args.plot_prefix}metrics.csv", index=False)
         
         # Plot
         plt.figure(figsize=(14, 6))

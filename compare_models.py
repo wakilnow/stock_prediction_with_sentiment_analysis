@@ -21,21 +21,33 @@ def run_command(cmd_args):
     return "".join(output_lines)
 
 def extract_metrics(output_text):
-    """Extract final MAE and RMSE from the training script output."""
-    mae = None
-    rmse = None
+    """Extract all metrics from the training script output."""
+    m = {
+        "mae": "N/A", "rmse": "N/A", "r2": "N/A", "mape": "N/A", 
+        "ic": "N/A", "icir": "N/A", "sharpe": "N/A"
+    }
     for line in output_text.split('\n'):
         if "Final Test MAE" in line:
-            mae = line.split(":")[-1].strip()
+            m["mae"] = line.split(":")[-1].strip().replace("$", "")
         elif "Final Test RMSE" in line:
-            rmse = line.split(":")[-1].strip()
-    return mae, rmse
+            m["rmse"] = line.split(":")[-1].strip().replace("$", "")
+        elif "Final Test R2 Score" in line:
+            m["r2"] = line.split(":")[-1].strip()
+        elif "Final Test MAPE" in line:
+            m["mape"] = line.split(":")[-1].strip().replace("%", "")
+        elif "Final Test IC:" in line:
+            m["ic"] = line.split(":")[-1].strip()
+        elif "Final Test ICIR" in line:
+            m["icir"] = line.split(":")[-1].strip()
+        elif "Final Test Sharpe Ratio" in line:
+            m["sharpe"] = line.split(":")[-1].strip()
+    return m
 
 if __name__ == "__main__":
     # Base configuration
     START_DATE = "2020-01-01"
     END_DATE = "2025-12-31"
-    TRIALS = "50" # Optuna trials per model
+    TRIALS = "500" # Optuna trials per model
     SEED = "7100"
 
     stocks_config = [
@@ -123,7 +135,7 @@ if __name__ == "__main__":
         ])
         with open(f"outputs/models/{symbol}_sentiment_terminal_output.txt", "w") as f:
             f.write(out_sentiment)
-        mae_sent, rmse_sent = extract_metrics(out_sentiment)
+        m_sent = extract_metrics(out_sentiment)
 
         # Step 4: Train Model WITHOUT Sentiment
         print("\n" + "=" * 60)
@@ -139,29 +151,71 @@ if __name__ == "__main__":
         ])
         with open(f"outputs/models/{symbol}_no_sentiment_terminal_output.txt", "w") as f:
             f.write(out_no_sentiment)
-        mae_no_sent, rmse_no_sent = extract_metrics(out_no_sentiment)
+        m_no_sent = extract_metrics(out_no_sentiment)
 
         results.append({
             "Symbol": symbol,
             "Model": sentiment_model_name,
-            "MAE_No_Sent": mae_no_sent,
-            "MAE_With_Sent": mae_sent,
-            "RMSE_No_Sent": rmse_no_sent,
-            "RMSE_With_Sent": rmse_sent
+            "No_Sent": m_no_sent,
+            "With_Sent": m_sent
         })
 
     # Step 5: Final Comparison Table
-    print("\n" + "=" * 100)
+    print("\n" + "=" * 120)
     print("FINAL COMPARISON RESULTS (2020 - 2025)")
-    print("=" * 100)
-    print(f"{'Stock':<8} | {'Sentiment Model':<55} | {'No Sent MAE':<12} | {'Sent MAE':<12}")
-    print("-" * 100)
-    for r in results:
-        print(f"{r['Symbol']:<8} | {r['Model']:<55} | {str(r['MAE_No_Sent']):<12} | {str(r['MAE_With_Sent']):<12}")
+    print("=" * 120)
     
-    print("\n" + "-" * 100)
-    print(f"{'Stock':<8} | {'Sentiment Model':<55} | {'No Sent RMSE':<12} | {'Sent RMSE':<12}")
-    print("-" * 100)
+    metrics_to_show = ["mae", "rmse", "r2", "mape", "ic", "icir", "sharpe"]
+    
+    # 1. Unified Table for Terminal
+    print(f"{'Stock':<8} | {'Metric':<8} | {'No Sentiment':<15} | {'With Sentiment':<15} | {'Improvement'}")
+    print("-" * 80)
     for r in results:
-        print(f"{r['Symbol']:<8} | {r['Model']:<55} | {str(r['RMSE_No_Sent']):<12} | {str(r['RMSE_With_Sent']):<12}")
-    print("=" * 100)
+        for m in metrics_to_show:
+            no_val = r["No_Sent"][m]
+            si_val = r["With_Sent"][m]
+            
+            # Calculate improvement percentage
+            try:
+                nv = float(no_val)
+                sv = float(si_val)
+                if nv != 0:
+                    # For error metrics (MAE, RMSE, MAPE), lower is better
+                    if m in ["mae", "rmse", "mape"]:
+                        imp = (nv - sv) / nv * 100
+                    else:
+                        imp = (sv - nv) / abs(nv) * 100
+                    imp_str = f"{imp:+.2f}%"
+                else:
+                    imp_str = "N/A"
+            except:
+                imp_str = "N/A"
+                
+            print(f"{r['Symbol']:<8} | {m.upper():<8} | {no_val:<15} | {si_val:<15} | {imp_str}")
+        print("-" * 80)
+    
+    # 2. Save to CSV
+    import csv
+    csv_file = "outputs/models/comparison_results.csv"
+    os.makedirs("outputs/models", exist_ok=True)
+    with open(csv_file, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Symbol", "Sentiment_Model", "Metric", "No_Sentiment", "With_Sentiment", "Improvement"])
+        for r in results:
+            for m in metrics_to_show:
+                no_val = r["No_Sent"][m]
+                si_val = r["With_Sent"][m]
+                
+                try:
+                    nv, sv = float(no_val), float(si_val)
+                    if nv != 0:
+                        if m in ["mae", "rmse", "mape"]: imp = (nv - sv) / nv * 100
+                        else: imp = (sv - nv) / abs(nv) * 100
+                        imp_str = f"{imp:.4f}%"
+                    else: imp_str = "0%"
+                except: imp_str = "N/A"
+                
+                writer.writerow([r["Symbol"], r["Model"], m.upper(), no_val, si_val, imp_str])
+    
+    print(f"\n[DONE] Consolidated results saved to: {csv_file}")
+    print("=" * 120)
