@@ -337,6 +337,13 @@ if __name__ == "__main__":
         })
         df_metrics.to_csv(f"{cmd_args.plot_prefix}metrics.csv", index=False)
         
+        # Save best hyperparameters to JSON
+        import json
+        params_to_save = {k: v for k, v in best_args.items() if k != 'save_path'}
+        params_to_save['best_val_loss'] = float(best_val_loss)
+        with open(f"{cmd_args.plot_prefix}best_params.json", "w") as jf:
+            json.dump(params_to_save, jf, indent=2)
+        
         # Plot
         plt.figure(figsize=(14, 6))
         plt.plot(all_targets_inv, label='True Close Price', color='blue', alpha=0.7)
