@@ -194,27 +194,50 @@ def objective(trial):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--trials', type=int, default=5, help='Number of optuna trials')
+    parser.add_argument('--trials', type=int, default=5, help='Number of optuna trials (set to 0 for fixed hyperparameters)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--data-dir', type=str, default='data/processed', help='Directory containing the processed numpy arrays')
     parser.add_argument('--save-model', type=str, default='models/best_transformer.pth', help='Path to save the best model')
     parser.add_argument('--plot-prefix', type=str, default=None, help='Prefix for saved plots (e.g., models/sentiment_)')
+    
+    # Fixed hyperparameter arguments
+    parser.add_argument('--d_model', type=int, default=64)
+    parser.add_argument('--nhead', type=int, default=4)
+    parser.add_argument('--num_layers', type=int, default=1)
+    parser.add_argument('--dropout', type=float, default=0.15)
+    parser.add_argument('--lr', type=float, default=0.0003)
+    parser.add_argument('--batch_size', type=int, default=16)
+    
     cmd_args = parser.parse_args()
 
     # Pass data_dir into global scope for objective function
     DATA_DIR = cmd_args.data_dir
 
-    print(f"Starting Optuna optimization on dataset: {DATA_DIR}")
+    print(f"Starting on dataset: {DATA_DIR}")
     set_seed(cmd_args.seed)
-    sampler = optuna.samplers.TPESampler(seed=cmd_args.seed)
-    study = optuna.create_study(direction="minimize", sampler=sampler)
-    study.optimize(objective, n_trials=cmd_args.trials)
     
-    print("\nBest hyperparameters data:")
-    print(study.best_params)
-    
-    print("\nTraining final model with best hparams (using chronological validation split)...")
-    best_args = study.best_params
+    if cmd_args.trials > 0:
+        print(f"Running Optuna optimization with {cmd_args.trials} trials...")
+        sampler = optuna.samplers.TPESampler(seed=cmd_args.seed)
+        study = optuna.create_study(direction="minimize", sampler=sampler)
+        study.optimize(objective, n_trials=cmd_args.trials)
+        
+        print("\nBest hyperparameters data:")
+        print(study.best_params)
+        best_args = study.best_params
+    else:
+        print("\nUsing fixed hyperparameters (skipping Optuna)...")
+        best_args = {
+            'd_model': cmd_args.d_model,
+            'nhead': cmd_args.nhead,
+            'num_layers': cmd_args.num_layers,
+            'dropout': cmd_args.dropout,
+            'lr': cmd_args.lr,
+            'batch_size': cmd_args.batch_size
+        }
+        print(best_args)
+        
+    print("\nTraining final model with hparams (using chronological validation split)...")
     best_args['save_path'] = cmd_args.save_model
     os.makedirs(os.path.dirname(cmd_args.save_model) or '.', exist_ok=True)
     
