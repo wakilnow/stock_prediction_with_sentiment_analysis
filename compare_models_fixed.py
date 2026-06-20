@@ -5,7 +5,7 @@ import json
 import base64
 import csv
 from datetime import datetime
-import numpy as np 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -84,10 +84,10 @@ if __name__ == "__main__":
     FIXED_BATCH_SIZE = "16"
 
     stocks_config = [
-        {"symbol": "JPM", "prices_csv": "data/prices/JPM.csv", "news_csv": "data/news_investing.com/jpm_news.csv", "sentiment_model": "ProsusAI/finbert"},
-        {"symbol": "BAC", "prices_csv": "data/prices/BAC.csv", "news_csv": "data/news_investing.com/bac_news.csv", "sentiment_model": "ProsusAI/finbert"},
-        {"symbol": "COMI", "prices_csv": "data/prices/COMI_CA.csv", "news_csv": "data/news10/COMI_mubasher.csv", "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"},
-        {"symbol": "CIEB", "prices_csv": "data/prices/CIEB_CA.csv", "news_csv": "data/news10/CIEB_mubasher.csv", "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"}
+        {"symbol": "JPM", "prices_csv": "data/prices/JPM.csv", "news_csv": "data/news_investing.com/jpm_news_augmented.csv", "sentiment_model": "ProsusAI/finbert"},
+        {"symbol": "BAC", "prices_csv": "data/prices/BAC.csv", "news_csv": "data/news_investing.com/bac_news_augmented.csv", "sentiment_model": "ProsusAI/finbert"},
+        {"symbol": "COMI", "prices_csv": "data/prices/COMI_CA.csv", "news_csv": "data/news10/COMI_mubasher_augmented.csv", "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"},
+        {"symbol": "CIEB", "prices_csv": "data/prices/CIEB_CA.csv", "news_csv": "data/news10/CIEB_mubasher_augmented.csv", "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"}
     ]
 
     results = []
