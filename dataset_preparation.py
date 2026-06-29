@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 import argparse
 
-def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_length=30, test_size=0.2, save_dir="data/processed", include_sentiment=True, sentiment_model="ProsusAI/finbert"):
+def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_length=30, test_size=0.2, save_dir="data/processed", include_sentiment=True, sentiment_model="ProsusAI/finbert", decay_rate=0.0):
     print("Loading datasets...")
     prices = pd.read_csv(prices_path)
     news = pd.read_csv(news_path)
@@ -93,6 +93,19 @@ def prepare_data(prices_path, news_path, start_date=None, end_date=None, seq_len
                     sentiment_scores.append(0.0)
                     
         merged['sentiment_score'] = sentiment_scores
+        
+        # Apply Vanishing/Decay Function
+        if decay_rate > 0.0:
+            last_score = 0.0
+            print(f"Applying exponential decay to sentiment (rate={decay_rate})...")
+            for i in range(len(merged)):
+                if merged['title'].iloc[i].strip() != '':
+                    # Day has news, reset to the new score
+                    last_score = merged.at[i, 'sentiment_score']
+                else:
+                    # Day has no news, decay the last seen score
+                    last_score = last_score * decay_rate
+                    merged.at[i, 'sentiment_score'] = last_score
 
     
     # Scale Close Price
@@ -146,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-dir", type=str, default="data/processed", help="Directory to save numpy arrays")
     parser.add_argument("--no-sentiment", action="store_true", help="Flag to disable FinBERT sentiment extraction")
     parser.add_argument("--sentiment-model", type=str, default="ProsusAI/finbert", help="HuggingFace model for sentiment extraction")
+    parser.add_argument("--decay-rate", type=float, default=0.0, help="Exponential decay rate for sentiment scores (0.0 means no decay)")
     args = parser.parse_args()
     
     if os.path.exists(args.prices) and os.path.exists(args.news):
@@ -156,7 +170,8 @@ if __name__ == "__main__":
             end_date=args.end_date,
             save_dir=args.save_dir,
             include_sentiment=not args.no_sentiment,
-            sentiment_model=args.sentiment_model
+            sentiment_model=args.sentiment_model,
+            decay_rate=args.decay_rate
         )
     else:
         print(f"Data files not found. Ensure {args.prices} and {args.news} exist.")
