@@ -15,8 +15,8 @@ from dataset_preparation import prepare_data
 
 # --- 1. CONFIGURATION ---
 DECAY_RATE = 0.90  # Default decay rate for the Vanishing Sentiment scenario
-SEEDS = [7100]
-EPOCHS = 100
+SEEDS = [15732, 29530, 7100]
+EPOCHS = 30
 BATCH_SIZE = 32
 
 situations = {
@@ -32,7 +32,7 @@ stocks_config = [
     {"symbol": "CIEB", "prices": "data/prices/CIEB_CA.csv", "news": "data/news10/CIEB_mubasher.csv", "sentiment_model": "CAMeL-Lab/bert-base-arabic-camelbert-msa-sentiment"}
 ]
 
-out_dir = "outputs/vanishing"
+out_dir = "outputs/vanishing_tuned"
 os.makedirs(out_dir, exist_ok=True)
 
 def run_command(cmd):
@@ -100,12 +100,10 @@ def run_training(symbol, sit_name, seed):
     else:
         out = run_command([
             ".venv/bin/python3", "train_automl.py",
-            "--trials", "0", "--data-dir", processed_dir,
+            "--trials", "20", "--data-dir", processed_dir,
             "--save-model", model_path,
             "--plot-prefix", plot_prefix,
-            "--seed", str(seed), "--d_model", "64", "--nhead", "4",
-            "--num_layers", "2", "--dropout", "0.1",
-            "--lr", "1e-4", "--batch_size", "32"
+            "--seed", str(seed), "--epochs", "100"
         ])
         with open(term_file, "w") as f:
             f.write(out)
@@ -382,8 +380,8 @@ if __name__ == "__main__":
 </body>
 </html>"""
 
-    html_file = f"{out_dir}/report_vanishing_sentiment.html"
-    with open(html_file, "w", encoding="utf-8") as f:
+    report_path = f"{out_dir}/report_vanishing_tuned.html"
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"\n[DONE] Saved comprehensive Vanishing Sentiment report to: {html_file}")
+    print(f"\n[DONE] Saved comprehensive Vanishing Sentiment report to: {report_path}")

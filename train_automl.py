@@ -32,7 +32,7 @@ def load_data(data_dir="data/processed"):
     y_test  = np.load(os.path.join(data_dir, "y_test.npy"))
     return X_train, y_train, X_test, y_test
 
-def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_test=None, plot_prefix=None):
+def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_test=None, plot_prefix=None, epochs=25):
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     
     num_features = X_train.shape[2]
@@ -65,7 +65,6 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
     best_val_loss = float('inf')
     early_stopping_patience = 5
     patience_counter = 0
-    epochs = 25
     
     train_losses = []
     val_losses = []
@@ -180,7 +179,7 @@ def objective(trial):
     }
     
     # Load Data
-    global DATA_DIR
+    global DATA_DIR, cmd_args
     X_train, y_train, X_test, y_test = load_data(data_dir=DATA_DIR)
     
     # Chronological split for validation out of Train set
@@ -188,7 +187,7 @@ def objective(trial):
     X_tr, y_tr = X_train[:train_size], y_train[:train_size]
     X_va, y_va = X_train[train_size:], y_train[train_size:]
     
-    val_loss = train_and_evaluate(args, X_tr, y_tr, X_va, y_va)
+    val_loss = train_and_evaluate(args, X_tr, y_tr, X_va, y_va, epochs=cmd_args.epochs)
     return val_loss
 
 if __name__ == "__main__":
@@ -207,6 +206,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.15)
     parser.add_argument('--lr', type=float, default=0.0003)
     parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--epochs', type=int, default=25, help='Number of training epochs')
     
     cmd_args = parser.parse_args()
 
@@ -248,7 +248,7 @@ if __name__ == "__main__":
     X_tr, y_tr = X_train[:train_size], y_train[:train_size]
     X_va, y_va = X_train[train_size:], y_train[train_size:]
     
-    best_val_loss = train_and_evaluate(best_args, X_tr, y_tr, X_va, y_va, X_test=X_test, y_test=y_test, plot_prefix=cmd_args.plot_prefix)
+    best_val_loss = train_and_evaluate(best_args, X_tr, y_tr, X_va, y_va, X_test=X_test, y_test=y_test, plot_prefix=cmd_args.plot_prefix, epochs=cmd_args.epochs)
     
     print(f"Validation loss (MSE Scaled) for best model: {best_val_loss:.6f}")
     
