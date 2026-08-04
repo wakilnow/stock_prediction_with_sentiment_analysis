@@ -142,11 +142,7 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
         plt.figure(figsize=(10, 5))
         plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss')
         plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss')
-        if test_losses:
-            plt.plot(range(1, len(test_losses) + 1), test_losses, label='Test Loss')
-            plt.title('Training, Validation, and Test Loss Curve')
-        else:
-            plt.title('Training and Validation Loss Curve')
+        plt.title('Training and Validation Loss Curve')
         plt.xlabel('Epochs')
         plt.ylabel('Loss (MSE)')
         plt.legend()
