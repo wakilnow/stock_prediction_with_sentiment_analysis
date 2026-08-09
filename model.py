@@ -18,46 +18,40 @@ class TimeSeriesDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-class MultimodalStockTransformer(nn.Module):
-    def __init__(self, num_features, d_model, nhead, num_layers, dropout=0.1, seq_length=30):
-        super(MultimodalStockTransformer, self).__init__()
+class StockLSTM(nn.Module):
+    def __init__(self, num_features, hidden_dim, num_layers=1, dropout=0.1, seq_length=30):
+        super(StockLSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
         
-        # Linear projection to transform input features to d_model dimensions
-        self.input_projection = nn.Linear(num_features, d_model)
+        # LSTM layer
+        lstm_dropout = dropout if num_layers > 1 else 0.0
+        self.lstm = nn.LSTM(
+            input_size=num_features,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            dropout=lstm_dropout,
+            batch_first=True
+        )
         
-        # Positional encoding param
-        # A simple learnable parameter for positional sequence embeddings
-        self.positional_encoding = nn.Parameter(torch.randn(1, seq_length, d_model))
-        
-        # Transformer Encoder
-        encoder_layers = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=num_layers)
-        
-        # Final fully connected layer to predict the next Close Price
+        # Regression head to predict next Close price
         self.fc = nn.Sequential(
-            nn.Linear(d_model, d_model // 2),
+            nn.Linear(hidden_dim, hidden_dim // 2),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(d_model // 2, 1)
+            nn.Linear(hidden_dim // 2, 1)
         )
         
     def forward(self, x):
         # x shape: (batch_size, seq_length, num_features)
-        batch_size, seq_length, _ = x.shape
+        lstm_out, _ = self.lstm(x) # (batch_size, seq_length, hidden_dim)
         
-        # 1. Project input features
-        x = self.input_projection(x) # (batch_size, seq_length, d_model)
+        # Use output of last time step
+        last_step = lstm_out[:, -1, :] # (batch_size, hidden_dim)
         
-        # 2. Add positional encoding
-        x = x + self.positional_encoding[:, :seq_length, :]
-        
-        # 3. Pass through Transformer Encoder
-        x = self.transformer_encoder(x) # (batch_size, seq_length, d_model)
-        
-        # 4. Use the output of the last time step for prediction
-        last_time_step = x[:, -1, :] # (batch_size, d_model)
-        
-        # 5. Regression head
-        output = self.fc(last_time_step) # (batch_size, 1)
-        
+        # Output prediction
+        output = self.fc(last_step) # (batch_size, 1)
         return output.squeeze(-1) # (batch_size,)
+
+# Backward compatibility alias
+MultimodalStockTransformer = StockLSTM

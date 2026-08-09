@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import random
 
-from model import TimeSeriesDataset, MultimodalStockTransformer
+from model import TimeSeriesDataset, StockLSTM
 
 def set_seed(seed=42):
     """Set all random seeds for reproducible results."""
@@ -38,10 +38,9 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
     num_features = X_train.shape[2]
     seq_length = X_train.shape[1]
     
-    model = MultimodalStockTransformer(
+    model = StockLSTM(
         num_features=num_features,
-        d_model=args['d_model'],
-        nhead=args['nhead'],
+        hidden_dim=args['d_model'],
         num_layers=args['num_layers'],
         dropout=args['dropout'],
         seq_length=seq_length
@@ -250,10 +249,9 @@ if __name__ == "__main__":
     
     # Compute MAE & RMSE on Original Scale
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-    model = MultimodalStockTransformer(
+    model = StockLSTM(
         num_features=X_train.shape[2],
-        d_model=best_args['d_model'],
-        nhead=best_args['nhead'],
+        hidden_dim=best_args['d_model'],
         num_layers=best_args['num_layers'],
         dropout=best_args['dropout'],
         seq_length=X_train.shape[1]
