@@ -33,6 +33,10 @@ def load_data(data_dir="data/processed"):
     return X_train, y_train, X_test, y_test
 
 def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_test=None, plot_prefix=None, epochs=25):
+    # Set seed for this specific run / trial
+    if 'seed' in args:
+        set_seed(args['seed'])
+        
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     
     num_features = X_train.shape[2]
@@ -152,19 +156,21 @@ def train_and_evaluate(args, X_train, y_train, X_valid, y_valid, X_test=None, y_
     return best_val_loss
 
 def objective(trial):
-    # Search Space
+    # Search Space (including seed tuning)
+    seed = trial.suggest_int('seed', 1, 99999)
     d_model = trial.suggest_categorical('d_model', [16, 32, 64])
     # Ensure d_model is divisible by nhead
     nhead_choices = [2, 4, 8]
     valid_nheads = [h for h in nhead_choices if d_model % h == 0]
     nhead = trial.suggest_categorical('nhead', valid_nheads)
     
-    num_layers = trial.suggest_int('num_layers', 1, 3)
+    num_layers = trial.suggest_int('num_layers', 1, 1)
     dropout = trial.suggest_float('dropout', 0.1, 0.5)
     lr = trial.suggest_float('lr', 1e-4, 5e-3, log=True)
     batch_size = trial.suggest_categorical('batch_size', [16, 32])
     
     args = {
+        'seed': seed,
         'd_model': d_model,
         'nhead': nhead,
         'num_layers': num_layers,
@@ -212,17 +218,18 @@ if __name__ == "__main__":
     set_seed(cmd_args.seed)
     
     if cmd_args.trials > 0:
-        print(f"Running Optuna optimization with {cmd_args.trials} trials...")
+        print(f"Running Optuna optimization with {cmd_args.trials} trials (tuning seed + hyperparameters)...")
         sampler = optuna.samplers.TPESampler(seed=cmd_args.seed)
         study = optuna.create_study(direction="minimize", sampler=sampler)
         study.optimize(objective, n_trials=cmd_args.trials)
         
-        print("\nBest hyperparameters data:")
+        print("\nBest hyperparameters data (including optimal seed):")
         print(study.best_params)
         best_args = study.best_params
     else:
         print("\nUsing fixed hyperparameters (skipping Optuna)...")
         best_args = {
+            'seed': cmd_args.seed,
             'd_model': cmd_args.d_model,
             'nhead': cmd_args.nhead,
             'num_layers': cmd_args.num_layers,

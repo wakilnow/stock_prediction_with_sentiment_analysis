@@ -15,7 +15,7 @@ from dataset_preparation import prepare_data
 
 # --- 1. CONFIGURATION ---
 DECAY_RATE = 0.90  # Default decay rate for the Vanishing Sentiment scenario
-SEEDS = [7100, 15732, 29530, 100,200,300,400]
+SEEDS = [None]
 EPOCHS = 100
 BATCH_SIZE = 32
 
